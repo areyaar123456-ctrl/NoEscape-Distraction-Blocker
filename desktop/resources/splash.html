@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Focus Agent - Distraction Blocked</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@600&family=Outfit:wght@400;700&display=swap');
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #5D7A65;
+            /* Deep Sage Green matching the user image */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #E2E8DE;
+            /* Light Sage Text */
+            font-family: 'Outfit', sans-serif;
+            transition: background 1s ease-in-out;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 600px;
+            padding: 20px;
+            animation: fadeIn 2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .icon {
+            width: 160px;
+            height: 160px;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.1));
+            animation: float 6s ease-in-out infinite;
+        }
+
+        h1 {
+            font-family: 'Crimson Pro', serif;
+            font-size: 3.5rem;
+            margin: 0;
+            letter-spacing: -0.02em;
+            line-height: 1.1;
+            font-weight: 600;
+        }
+
+        p {
+            font-family: 'Crimson Pro', serif;
+            font-size: 2.2rem;
+            margin: 0.5rem 0 2rem;
+            opacity: 0.9;
+        }
+
+        .countdown-container {
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .timer-track {
+            width: 120px;
+            height: 3px;
+            background: rgba(226, 232, 222, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .timer-bar {
+            width: 100%;
+            height: 100%;
+            background: #E2E8DE;
+            border-radius: 10px;
+            animation: deplete 10s linear forwards;
+        }
+
+        .footer {
+            position: absolute;
+            bottom: 40px;
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            font-weight: 700;
+            opacity: 0.7;
+        }
+
+        .link {
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        .link:hover {
+            opacity: 1;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+
+            100% {
+                transform: translateY(0px);
+            }
+        }
+
+        @keyframes deplete {
+            from {
+                width: 100%;
+            }
+
+            to {
+                width: 0%;
+            }
+        }
+
+        /* Ambient glowing background effect */
+        .ambient {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(226, 232, 222, 0.05) 0%, rgba(226, 232, 222, 0) 70%);
+            z-index: -1;
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.3;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+
+            100% {
+                opacity: 0.3;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="ambient"></div>
+    <div class="container">
+        <!-- SVG Butterfly Logo (mimicking the aesthetic) -->
+        <svg class="icon" viewBox="0 0 100 100" fill="currentColor">
+            <path
+                d="M50 85c-2-10-8-15-15-18-10-5-25-2-30-15s15-30 25-25c5 2 10 8 15 15z m0 0c2-10 8-15 15-18 10-5 25-2 30-15s-15-30-25-25c-5 2-10 8-15 15z" />
+            <path
+                d="M50 85c-1-8-4-12-8-14-6-3-15-1.5-18-9.5s9-17 15-14c3 1.5 6 5 8 9.5z m0 0c1-8 4-12 8-14 6-3 15-1.5 18-9.5s-9-17-15-14c-3 1.5-6 5-8 9.5z"
+                opacity="0.6" />
+        </svg>
+
+        <h1 id="quote-main">You are free.</h1>
+        <p id="quote-sub">Do what matters.</p>
+
+        <div class="countdown-container">
+            <div class="timer-track">
+                <div class="timer-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <span class="link">SECURE PROTECTION ACTIVE</span>
+        <span class="link">GIVE FREEDOM</span>
+    </div>
+
+    <script>
+        const quotes = [
+            ["You are free.", "Do what matters."],
+            ["There is no tomorrow.", "Only now."],
+            ["Focus is a muscle.", "Exercise it."],
+            ["Distraction is the enemy of greatness.", "Stay locked in."],
+            ["Time is your most precious asset.", "Don't sell it cheap."],
+            ["The future is built today.", "Not tomorrow."],
+            ["Discipline equals freedom.", "Be disciplined."],
+            ["You said you wanted this.", "Prove it."],
+            ["Stop performing for the algorithm.", "Perform for your goals."],
+            ["This is the resistance.", "Push through it."],
+            ["Comfort is a drug.", "Choose the hard path."],
+            ["Your goals don't care how you feel.", "Execute."],
+            ["Small disciplines repeated daily", "Lead to great achievements."],
+            ["Don't trade what you want most", "For what you want now."],
+            ["Your attention is money.", "Stop giving it away."],
+            ["Are you consuming or creating?", "Create."],
+            ["What you do today", "Can improve all your tomorrows."],
+            ["The pain of discipline", "Is less than the pain of regret."],
+            ["Amateurs wait for inspiration.", "Professionals just get to work."],
+            ["Excuses sound best", "To the person making them."],
+            ["Your potential is infinite.", "Your time is not."],
+            ["Make it happen.", "Shock everyone."],
+            ["Do something today", "That your future self will thank you for."],
+            ["The magic you are looking for", "Is in the work you're avoiding."],
+            ["Obsession beats talent.", "Stay obsessed."],
+            ["It's going to be hard.", "But hard does not mean impossible."],
+            ["Doubt kills more dreams", "Than failure ever will."],
+            ["If it is important to you,", "You will find a way."],
+            ["Be stronger than your excuses.", "Start now."],
+            ["Don't stop when you're tired.", "Stop when you're done."],
+            ["Action is the foundational key", "To all success."],
+            ["A year from now", "You will wish you had started today."],
+            ["The secret of getting ahead", "Is getting started."],
+            ["Vision without execution", "Is just hallucination."],
+            ["Every master was once", "A beginner."],
+            ["Focus on the step in front of you.", "Not the whole staircase."],
+            ["Nothing will work", "Unless you do."],
+            ["Success is what happens", "After you have survived all your disappointments."],
+            ["It is not about having time.", "It is about making time."],
+            ["You have to be at your strongest", "When you're feeling at your weakest."],
+            ["Dream big.", "Work hard. Stay focused."],
+            ["Success is a series of small wins.", "Win this moment."],
+            ["Turn your cant's into cans", "And your dreams into plans."],
+            ["Focus on being productive", "Instead of busy."],
+            ["Be so good", "They can't ignore you."],
+            ["The best way to predict the future", "Is to create it."],
+            ["Don't watch the clock;", "Do what it does. Keep going."],
+            ["It always seems impossible", "Until it's done."],
+            ["Work until your idols", "Become your rivals."],
+            ["Success doesn't come to you,", "You go to it."],
+            ["Starve your distractions", "Feed your focus."],
+            ["You didn't come this far", "To only come this far."],
+            ["Wake up with determination.", "Go to bed with satisfaction."],
+            ["The difference between ordinary and extraordinary", "Is that little extra."],
+            ["Make your life a masterpiece;", "Imagine no limitations on what you can be."],
+            ["Don't limit your challenges.", "Challenge your limits."],
+            ["Great things never come", "From comfort zones."],
+            ["Strive for progress,", "Not perfection."],
+            ["Hard work beats talent", "When talent doesn't work hard."],
+            ["Believe you can", "And you're halfway there."],
+            ["The harder you work for something,", "The greater you'll feel when you achieve it."],
+            ["Don't be pushed around by the fears in your mind.", "Be led by the dreams in your heart."],
+            ["Instead of wondering when your next vacation is,", "Set up a life you don't need to escape from."],
+            ["Limit your 'always' and your 'nevers'.", "Focus on 'right now'."],
+            ["It does not matter how slowly you go", "As long as you do not stop."],
+            ["Everything you've ever wanted", "Is on the other side of fear."],
+            ["Success is not final, failure is not fatal:", "It is the courage to continue that counts."],
+            ["You miss 100% of the shots", "You don't take."],
+            ["Whether you think you can or you think you can't,", "You're right."],
+            ["I attribute my success to this:", "I never gave or took any excuse."],
+            ["The most difficult thing is the decision to act,", "The rest is merely tenacity."],
+            ["Definiteness of purpose", "Is the starting point of all achievement."],
+            ["Life is what happens to you", "While you're busy making other plans."],
+            ["We become", "What we think about."],
+            ["Twenty years from now you will be more disappointed by the things that you didn't do", "Than by the ones you did do."],
+            ["The mind is everything.", "What you think you become."],
+            ["The best time to plant a tree was 20 years ago.", "The second best time is now."],
+            ["An unexamined life", "Is not worth living."],
+            ["Eighty percent of success", "Is showing up."],
+            ["Your time is limited,", "Don't waste it living someone else's life."],
+            ["Winning isn't everything,", "But wanting to win is."],
+            ["I am not a product of my circumstances.", "I am a product of my decisions."],
+            ["Every child is an artist.", "The problem is how to remain an artist once he grows up."],
+            ["You can never cross the ocean", "Until you have the courage to lose sight of the shore."],
+            ["I've learned that people will forget what you said,", "But people will never forget how you made them feel."],
+            ["Either you run the day,", "Or the day runs you."],
+            ["Whether you think you can or you think you can't,", "You're right."],
+            ["The two most important days in your life are the day you are born", "And the day you find out why."],
+            ["Whatever you can do, or dream you can, begin it.", "Boldness has genius, power and magic in it."],
+            ["The best revenge", "Is massive success."],
+            ["People often say that motivation doesn't last.", "Well, neither does bathing. That's why we recommend it daily."],
+            ["Life shrinks or expands", "In proportion to one's courage."],
+            ["If you hear a voice within you say 'you cannot paint,'", "Then by all means paint and that voice will be silenced."],
+            ["There is only one way to avoid criticism:", "Do nothing, say nothing, and be nothing."],
+            ["Ask and it will be given to you;", "Seek and you will find; knock and the door will be opened to you."],
+            ["The only person you are destined to become", "Is the person you decide to be."],
+            ["Go confidently in the direction of your dreams.", "Live the life you have imagined."],
+            ["When I stand before God at the end of my life,", "I would hope that I would not have a single bit of talent left."],
+            ["Few things can help an individual more", "Than to place responsibility on him, and to let him know that you trust him."],
+            ["Certain things catch your eye,", "But pursue only those that capture the heart."],
+            ["Believe you can", "And you're halfway there."],
+            ["Everything you've ever wanted", "Is on the other side of fear."],
+            ["We can easily forgive a child who is afraid of the dark;", "The real tragedy of life is when men are afraid of the light."]
+        ];
+
+        // Pick a random quote
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        document.getElementById('quote-main').textContent = randomQuote[0];
+        document.getElementById('quote-sub').textContent = randomQuote[1];
+
+        // Close via Electron IPC after 10 seconds
+        if (window.require) {
+            const { ipcRenderer } = require('electron');
+            setTimeout(() => {
+                ipcRenderer.send('hide-splash');
+            }, 10000);
+        }
+    </script>
+</body>
+
+</html>

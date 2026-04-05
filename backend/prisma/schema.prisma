@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String      @id @default(uuid())
+  email         String      @unique
+  password_hash String
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  devices       Device[]
+  sessions      Session[]
+  blocklists    Blocklist[]
+}
+
+model Device {
+  id          String   @id @default(uuid())
+  user_id     String
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  device_name String
+  os_type     String
+  public_key  String
+  device_token String @unique @default(uuid())
+  created_at  DateTime @default(now())
+
+  @@index([user_id])
+}
+
+model Session {
+  id           String    @id @default(uuid())
+  user_id      String
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  blocklist_id String?
+  blocklist    Blocklist? @relation(fields: [blocklist_id], references: [id], onDelete: SetNull)
+  start_time   DateTime
+  end_time     DateTime
+  locked_mode  Boolean   @default(false)
+  active       Boolean   @default(true)
+  created_at   DateTime  @default(now())
+
+  @@index([user_id])
+}
+
+model Blocklist {
+  id             String          @id @default(uuid())
+  user_id        String
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  name           String
+  blocked_domains BlockedDomain[]
+  blocked_apps    BlockedApp[]
+  sessions       Session[]
+  created_at     DateTime        @default(now())
+
+  @@index([user_id])
+}
+
+model BlockedDomain {
+  id           String    @id @default(uuid())
+  blocklist_id String
+  blocklist    Blocklist @relation(fields: [blocklist_id], references: [id], onDelete: Cascade)
+  domain       String
+
+  @@index([blocklist_id])
+}
+
+model BlockedApp {
+  id           String    @id @default(uuid())
+  blocklist_id String
+  blocklist    Blocklist @relation(fields: [blocklist_id], references: [id], onDelete: Cascade)
+  process_name String
+
+  @@index([blocklist_id])
+}

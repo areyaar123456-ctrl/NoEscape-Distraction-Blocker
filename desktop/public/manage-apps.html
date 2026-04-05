@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freedom - Blocked Apps</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f3f3f3;
+            color: #333;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-content {
+            padding: 20px;
+            background-color: #f3f3f3;
+            flex-shrink: 0;
+        }
+
+        .header-content p {
+            margin: 0;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #444;
+        }
+
+        .header-content a {
+            color: #0066cc;
+            text-decoration: none;
+        }
+        .header-content a:hover { text-decoration: underline; }
+
+        .container {
+            flex-grow: 1;
+            padding: 0 20px 20px 20px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .list-container {
+            background-color: #ffffff;
+            border: 1px solid #c0c0c0;
+            flex-grow: 1;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 2px;
+        }
+
+        /* Using table layout for precise pixel perfect alignment */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+        th, td {
+            text-align: left;
+            padding: 4px 8px;
+            font-size: 13px;
+            border-right: 1px solid #f0f0f0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        th { background: #f9f9f9; border-bottom: 1px solid #e0e0e0; font-weight: normal; color: #666; position: sticky; top: 0; z-index: 1;}
+        tr { cursor: default; }
+        tr:hover { background-color: #e5f3ff; }
+        tr.selected { background-color: #cce8ff; }
+
+        .app-icon {
+            width: 16px;
+            height: 16px;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        .empty-state {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #888; font-size: 13px; text-align: center;
+        }
+
+        .footer {
+            padding: 15px 20px;
+            background-color: #f3f3f3;
+            border-top: 1px solid #dfdfdf;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 6px 20px;
+            background-color: #e1e1e1;
+            border: 1px solid #adadad;
+            border-radius: 2px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+            min-width: 80px;
+        }
+        button:hover { background-color: #e5f1fb; border-color: #0078d7; }
+        button:active { background-color: #cce4f7; border-color: #005499; }
+        button.save {
+            background-color: white;
+            border-color: #888;
+        }
+
+        /* Custom OS Scrollbar */
+        ::-webkit-scrollbar { width: 14px; background: #f0f0f0; border-left: 1px solid #dfdfdf; }
+        ::-webkit-scrollbar-thumb { background: #cdcdcd; border: 1px solid #f0f0f0; }
+        ::-webkit-scrollbar-thumb:hover { background: #a6a6a6; }
+        ::-webkit-scrollbar-button { display: none; }
+    </style>
+</head>
+<body>
+    <div class="header-content">
+        <p>When you run a Freedom session on this computer that contains the "Block Apps" blocklist, the apps you select below will be blocked. <a href="#">Learn more here.</a><br/>Applications may need to be running to appear in this list. If an app is listed more than once in this list it is recommended that you select each instance.</p>
+    </div>
+
+    <div class="container">
+        <div class="list-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 30px; text-align: center;"></th>
+                        <th>Application Name / Path</th>
+                    </tr>
+                </thead>
+                <tbody id="app-list">
+                    <!-- Apps inject here -->
+                </tbody>
+            </table>
+            <div id="loading" class="empty-state">Loading installed & running applications...</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <div class="checkbox-container">
+            <input type="checkbox" id="show-path" />
+            <label for="show-path">Show process path</label>
+        </div>
+        <div class="buttons">
+            <button class="save" id="btn-save">Save</button>
+            <button id="btn-refresh">Refresh</button>
+        </div>
+    </div>
+
+    <script>
+        const { api } = window;
+        let apps = [];
+        let selectedAppNames = new Set();
+        let showPath = false;
+
+        const appListEl = document.getElementById('app-list');
+        const loadingEl = document.getElementById('loading');
+        const showPathCheckbox = document.getElementById('show-path');
+        const btnRefresh = document.getElementById('btn-refresh');
+        const btnSave = document.getElementById('btn-save');
+
+        // Receives initial array of selected .exe names or blocklist names
+        api.onManageAppsInit((initialSelected) => {
+            if (initialSelected) {
+                selectedAppNames = new Set(initialSelected);
+            }
+            loadApps();
+        });
+
+        async function loadApps() {
+            loadingEl.style.display = 'block';
+            appListEl.innerHTML = '';
+            
+            try {
+                // Fetch Apps native list
+                apps = await api.getRunningApps();
+                loadingEl.style.display = 'none';
+                renderList();
+            } catch(e) {
+                loadingEl.textContent = 'Error loading applications.';
+            }
+        }
+
+        async function renderList() {
+            appListEl.innerHTML = '';
+            for (const app of apps) {
+                const tr = document.createElement('tr');
+                const isChecked = selectedAppNames.has(app.name) ? 'checked' : '';
+                
+                tr.className = isChecked ? 'selected' : '';
+                
+                const tdCheck = document.createElement('td');
+                tdCheck.style.textAlign = 'center';
+                tdCheck.innerHTML = `<input type="checkbox" class="app-checkbox" data-name="${app.name}" ${isChecked} />`;
+                
+                const tdName = document.createElement('td');
+                const iconImg = document.createElement('img');
+                iconImg.className = 'app-icon';
+                // Use a cached blank 16x16 transparent img initially
+                iconImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; 
+                
+                const spanName = document.createElement('span');
+                spanName.textContent = showPath ? app.path : app.name;
+                spanName.title = app.path;
+
+                tdName.appendChild(iconImg);
+                tdName.appendChild(spanName);
+
+                tr.appendChild(tdCheck);
+                tr.appendChild(tdName);
+
+                // Row click toggles checkbox
+                tr.addEventListener('click', (e) => {
+                    if (e.target.type !== 'checkbox') {
+                        const cb = tr.querySelector('.app-checkbox');
+                        cb.checked = !cb.checked;
+                        cb.dispatchEvent(new Event('change'));
+                    }
+                });
+
+                const cb = tdCheck.querySelector('input');
+                cb.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        selectedAppNames.add(app.name);
+                        tr.classList.add('selected');
+                    } else {
+                        selectedAppNames.delete(app.name);
+                        tr.classList.remove('selected');
+                    }
+                });
+
+                appListEl.appendChild(tr);
+
+                // Lazy load icon
+                if (app.path) {
+                    api.getFileIcon(app.path).then(dataUrl => {
+                        if (dataUrl) iconImg.src = dataUrl;
+                    });
+                }
+            }
+        }
+
+        showPathCheckbox.addEventListener('change', (e) => {
+            showPath = e.target.checked;
+            renderList();
+        });
+
+        btnRefresh.addEventListener('click', loadApps);
+        
+        btnSave.addEventListener('click', () => {
+            api.saveManagedApps(Array.from(selectedAppNames));
+        });
+
+    </script>
+</body>
+</html>
