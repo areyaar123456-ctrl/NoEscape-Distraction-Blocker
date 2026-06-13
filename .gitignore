@@ -29,6 +29,7 @@ obj/
 # IDE files
 .vscode/
 .idea/
+.obsidian/
 *.swp
 *.swo
 
@@ -47,3 +48,6 @@ Thumbs.db
 /prisma/migrations/
 /prisma/*.db
 /prisma/*.db-journal
+
+# Local analysis artifacts
+graphify-out/

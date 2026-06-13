@@ -6,7 +6,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { Notification, BrowserWindow, app } from 'electron';
+import { Notification, BrowserWindow, app, screen } from 'electron';
 
 interface SessionData {
     id: string;
@@ -17,34 +17,102 @@ interface SessionData {
     apps: string[];
 }
 
+type NativeCommand = 'PING' | 'START_BLOCK' | 'STOP_BLOCK';
+
+interface NativeServiceResponse {
+    status: 'ok' | 'error';
+    requestId?: string;
+    command?: string;
+    message?: string;
+    warnings?: string[];
+}
+
+interface NativeServiceResult {
+    ok: boolean;
+    response?: NativeServiceResponse;
+    message?: string;
+    warnings: string[];
+}
+
 const PIPE_NAME = '\\\\.\\pipe\\DistractionBlockerPipe';
+const NATIVE_IPC_TIMEOUT_MS = 5000;
+const SPLASH_OVERLAY_DURATION_MS = 10000;
 
 export class SessionManager {
     private store = new Store();
     private hostsManager = new HostsManager();
     private processMonitor = new ProcessMonitor();
     private terminatorProcess: ChildProcess | null = null;
-    private splashOverlay: BrowserWindow | null = null;
+    private splashOverlays: BrowserWindow[] = [];
     private stdoutBuffer: string = '';
     private engineProcess: ChildProcess | null = null;
 
-    private sendToNativeService(command: string, domains: string[], apps: string[]): Promise<boolean> {
+    private sendToNativeService(command: NativeCommand, domains: string[], apps: string[]): Promise<NativeServiceResult> {
         return new Promise((resolve) => {
-            const client = net.createConnection(PIPE_NAME, () => {
+            const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            let settled = false;
+            let responseBuffer = '';
+            let client: net.Socket;
+            let timeout: NodeJS.Timeout;
+
+            const finish = (result: NativeServiceResult) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timeout);
+                resolve(result);
+            };
+
+            timeout = setTimeout(() => {
+                client.destroy();
+                finish({
+                    ok: false,
+                    message: `Native service timed out after ${NATIVE_IPC_TIMEOUT_MS}ms while handling ${command}.`,
+                    warnings: [],
+                });
+            }, NATIVE_IPC_TIMEOUT_MS);
+
+            client = net.createConnection(PIPE_NAME, () => {
                 console.log(`[NATIVE IPC] Connected. Sending command: ${command}`);
-                const msg = JSON.stringify({ command, websites: domains, apps }) + '\r\n';
+                const msg = JSON.stringify({
+                    protocolVersion: 1,
+                    requestId,
+                    command,
+                    websites: domains,
+                    apps,
+                }) + '\r\n';
                 client.write(msg);
             });
 
             client.on('data', (data) => {
-                console.log('[NATIVE IPC] Received:', data.toString());
-                client.end();
-                resolve(true);
+                responseBuffer += data.toString();
+                if (!responseBuffer.includes('\n')) return;
+
+                const line = responseBuffer.split(/\r?\n/)[0];
+                console.log('[NATIVE IPC] Received:', line);
+
+                try {
+                    const response = JSON.parse(line) as NativeServiceResponse;
+                    const warnings = Array.isArray(response.warnings) ? response.warnings : [];
+                    client.end();
+                    finish({
+                        ok: response.status === 'ok' && (!response.requestId || response.requestId === requestId),
+                        response,
+                        message: response.message,
+                        warnings,
+                    });
+                } catch (err) {
+                    client.destroy();
+                    finish({
+                        ok: false,
+                        message: `Native service returned invalid JSON for ${command}.`,
+                        warnings: [String(err)],
+                    });
+                }
             });
 
             client.on('error', (err) => {
                 console.error('[NATIVE IPC] Error connecting to native service (is it installed/running?):', err.message);
-                resolve(false);
+                finish({ ok: false, message: err.message, warnings: [] });
             });
         });
     }
@@ -54,7 +122,7 @@ export class SessionManager {
         
         // 1. Check if the engine is already active via pipe reachability
         const isAlreadyLive = await this.sendToNativeService('PING', [], []);
-        if (isAlreadyLive) {
+        if (isAlreadyLive.ok) {
             console.log('[SESSION] Native Engine is already active (via Service or background process).');
             return;
         }
@@ -155,8 +223,12 @@ export class SessionManager {
         console.log(`[SESSION] Applying NATIVE multi-level blocking for ${data.domains.length} domains and ${data.apps.length} apps.`);
         this.processMonitor.start(data.apps);
         this.startTabTerminator(data.domains);
-        const isSuccess = await this.sendToNativeService('START_BLOCK', data.domains, data.apps);
-        return { nativeService: isSuccess };
+        const nativeService = await this.sendToNativeService('START_BLOCK', data.domains, data.apps);
+        if (!nativeService.ok) {
+            console.warn('[SESSION] Native service reported blocking failure:', nativeService.message);
+        }
+        nativeService.warnings.forEach((warning) => console.warn('[SESSION] Native service warning:', warning));
+        return { nativeService: nativeService.ok, nativeServiceDetail: nativeService };
     }
 
     private startTabTerminator(domains: string[]) {
@@ -202,7 +274,7 @@ export class SessionManager {
                         const domain = match ? match[1] : 'distracting site';
                         new Notification({
                             title: '🚫 Distraction Terminated',
-                            body: `Focus Agent restricted access to "${domain}".`,
+                            body: `NoEscape restricted access to "${domain}".`,
                             silent: false,
                         }).show();
                     }
@@ -221,27 +293,49 @@ export class SessionManager {
         }
     }
 
+    private splashTimeout: NodeJS.Timeout | null = null;
+
+    private scheduleSplashOverlayClose() {
+        if (this.splashTimeout) clearTimeout(this.splashTimeout);
+        this.splashTimeout = setTimeout(() => {
+            this.closeSplashOverlays();
+        }, SPLASH_OVERLAY_DURATION_MS);
+    }
+
+    private closeSplashOverlays() {
+        if (this.splashTimeout) {
+            clearTimeout(this.splashTimeout);
+            this.splashTimeout = null;
+        }
+
+        for (const overlay of this.splashOverlays) {
+            if (!overlay.isDestroyed()) {
+                overlay.close();
+            }
+        }
+        this.splashOverlays = [];
+    }
+
+    private assertCurrentSessionCanBeEnded() {
+        const session = this.store.get('currentSession') as SessionData | null;
+        if (session?.locked_mode && new Date(session.end_time) > new Date()) {
+            throw new Error('Locked session cannot be ended early.');
+        }
+    }
+
     public launchSplashOverlay() {
-        if (this.splashOverlay) return;
+        const activeOverlays = this.splashOverlays.filter(overlay => !overlay.isDestroyed());
+        if (activeOverlays.length > 0) {
+            this.splashOverlays = activeOverlays;
+            for (const overlay of activeOverlays) {
+                overlay.show();
+                overlay.setAlwaysOnTop(true, 'screen-saver');
+                overlay.moveTop();
+            }
+            return;
+        }
 
         try {
-            this.splashOverlay = new BrowserWindow({
-                fullscreen: true,
-                frame: false,
-                alwaysOnTop: true,
-                skipTaskbar: true,
-                resizable: false,
-                transparent: false,
-                backgroundColor: '#0f172a', // Slate-900 fallback
-                webPreferences: { 
-                    nodeIntegration: true, 
-                    contextIsolation: false 
-                }
-            });
-            
-            this.splashOverlay.setMenu(null);
-            this.splashOverlay.setAlwaysOnTop(true, 'screen-saver');
-
             let splashFile = path.join(app.getAppPath(), 'resources', 'splash.html');
             if (!fs.existsSync(splashFile)) {
                 splashFile = path.join(process.cwd(), 'resources', 'splash.html');
@@ -250,17 +344,54 @@ export class SessionManager {
                 splashFile = path.join(process.resourcesPath || '', 'resources', 'splash.html');
             }
 
-            this.splashOverlay.loadFile(splashFile).catch(err => {
-                console.error('[SPLASH] Load error:', err);
-                this.splashOverlay?.destroy();
+            const displays = screen.getAllDisplays();
+            this.splashOverlays = displays.map((display) => {
+                const overlay = new BrowserWindow({
+                    ...display.bounds,
+                    frame: false,
+                    fullscreen: true,
+                    kiosk: true,
+                    alwaysOnTop: true,
+                    skipTaskbar: true,
+                    resizable: false,
+                    movable: false,
+                    minimizable: false,
+                    maximizable: false,
+                    transparent: false,
+                    backgroundColor: '#ffffff',
+                    webPreferences: {
+                        nodeIntegration: false,
+                        contextIsolation: true
+                    }
+                });
+
+                overlay.setMenu(null);
+                overlay.setAlwaysOnTop(true, 'screen-saver');
+                overlay.setVisibleOnAllWorkspaces(true);
+                overlay.setBounds(display.bounds);
+                overlay.setFullScreen(true);
+                overlay.setKiosk(true);
+                overlay.show();
+                overlay.moveTop();
+                overlay.once('ready-to-show', () => {
+                    overlay.setBounds(display.bounds);
+                    overlay.setFullScreen(true);
+                    overlay.setKiosk(true);
+                    overlay.show();
+                    overlay.moveTop();
+                });
+                overlay.loadFile(splashFile).catch(err => {
+                    console.error('[SPLASH] Load error:', err);
+                    overlay.destroy();
+                });
+                overlay.once('closed', () => {
+                    this.splashOverlays = this.splashOverlays.filter(item => item !== overlay);
+                });
+
+                return overlay;
             });
-            
-            setTimeout(() => {
-                if (this.splashOverlay && !this.splashOverlay.isDestroyed()) {
-                    this.splashOverlay.close();
-                }
-                this.splashOverlay = null;
-            }, 10000);
+
+            this.scheduleSplashOverlayClose();
         } catch (e) {
             console.error('[SPLASH] Failed to create overlay:', e);
         }
@@ -302,9 +433,7 @@ export class SessionManager {
         const session = this.store.get('currentSession') as SessionData | null;
         if (!session) return;
 
-        if (session.locked_mode && new Date(session.end_time) > new Date()) {
-            throw new Error('Locked session cannot be ended early.');
-        }
+        this.assertCurrentSessionCanBeEnded();
 
         console.log('[SESSION] Ending session. Restoring systems...');
         try { this.processMonitor.stop(); } catch (e) {}
@@ -312,6 +441,9 @@ export class SessionManager {
         this.terminatorProcess = null;
 
         const success = await this.sendToNativeService('STOP_BLOCK', [], []);
+        if (!success.ok) {
+            console.warn('[SESSION] Native service reported cleanup failure:', success.message);
+        }
         await this.hostsManager.restore();
 
         const history = this.getHistory();
@@ -322,11 +454,16 @@ export class SessionManager {
     }
 
     public async forceDeepClean() {
+        this.assertCurrentSessionCanBeEnded();
+
         this.processMonitor.stop();
         try { this.terminatorProcess?.kill(); } catch (e) {}
         this.terminatorProcess = null;
         await this.hostsManager.restore();
-        await this.sendToNativeService('STOP_BLOCK', [], []);
+        const success = await this.sendToNativeService('STOP_BLOCK', [], []);
+        if (!success.ok) {
+            console.warn('[SESSION] Native service reported deep-clean failure:', success.message);
+        }
         this.store.delete('currentSession');
     }
 

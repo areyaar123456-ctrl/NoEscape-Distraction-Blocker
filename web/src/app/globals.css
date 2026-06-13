@@ -43,21 +43,21 @@ body::before {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.4);
+  background: rgba(239, 68, 68, 0.4);
   border-radius: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.8);
+  background: rgba(239, 68, 68, 0.8);
 }
 
 /* Glowing Neon Elements */
 .neon-glow {
-  box-shadow: 0 0 15px rgba(59, 130, 246, 0.5), inset 0 0 10px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.5), inset 0 0 10px rgba(239, 68, 68, 0.2);
 }
 
 .text-glow {
-  text-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
 }
 
 /* Base keyframes used across the app */
@@ -65,11 +65,11 @@ body::before {
 
   0%,
   100% {
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
   }
 
   50% {
-    box-shadow: 0 0 25px rgba(59, 130, 246, 0.6);
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
   }
 }
 

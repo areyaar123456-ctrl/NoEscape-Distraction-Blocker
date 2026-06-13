@@ -10,11 +10,11 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 Set-Location $PSScriptRoot
 
 Write-Host "================================" -ForegroundColor Cyan
-Write-Host "   FOCUS AGENT SYSTEM START    " -ForegroundColor Cyan
+Write-Host "      NOESCAPE SYSTEM START     " -ForegroundColor Cyan
 Write-Host "================================" -ForegroundColor Cyan
 
 # Ensure a clean environment by aggressively killing any processes on our ports
-Write-Host "Clearing harbors (Killing old processes on ports 3000, 3001, 5173)..." -ForegroundColor Yellow
+Write-Host "Clearing old local processes on ports 3000, 3001, 5173..." -ForegroundColor Yellow
 npx --yes kill-port 3000 3001 5173
 
 # Start Backend
@@ -29,13 +29,13 @@ Write-Host "[2/3] Launching Web Dashboard..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd web; ./start-web.ps1"
 
 # Start Desktop
-Write-Host "[3/3] Launching Desktop Focus Agent..." -ForegroundColor Yellow
+Write-Host "[3/3] Launching NoEscape Desktop..." -ForegroundColor Yellow
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd desktop; ./start-desktop.ps1"
 
 Write-Host ""
 Write-Host "All systems are spinning up!" -ForegroundColor Green
 Write-Host "Backend: http://localhost:3001"
 Write-Host "Web Dashboard: http://localhost:3000"
-Write-Host "Desktop Agent: Starting..." 
+Write-Host "NoEscape Desktop: Starting..."
 Write-Host ""
-Write-Host "Keep these windows open while using Focus Agent." -ForegroundColor Gray
+Write-Host "Keep these windows open while using NoEscape." -ForegroundColor Gray

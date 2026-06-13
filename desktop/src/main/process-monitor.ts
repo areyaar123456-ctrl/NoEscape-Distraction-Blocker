@@ -65,10 +65,10 @@ export class ProcessMonitor {
         // Trigger the signal to launch the splash screen
         this.onBlocked?.(processName);
 
-        // Notification, debounce by 15 seconds to avoid spamming
+        // Notification, debounce by 1 second to avoid excessive spamming but remain responsive
         const now = Date.now();
         const lastTime = this.lastNotified.get(processName) || 0;
-        if (now - lastTime > 15000) {
+        if (now - lastTime > 1000) {
             new Notification({
                 title: '🚫 Blocked App Closed',
                 body: `"${processName}" was terminated. Stay in focus!`,

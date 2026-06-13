@@ -20,7 +20,7 @@ else {
     exit 1
 }
 
-Write-Host "Starting Focus Agent Desktop App (Development Mode)..." -ForegroundColor Cyan
+Write-Host "Starting NoEscape Desktop App (Development Mode)..." -ForegroundColor Cyan
 
 # 0. Build main & preload processes to ensure IPC bridge is available
 Write-Host "Building system processes..." -ForegroundColor Yellow

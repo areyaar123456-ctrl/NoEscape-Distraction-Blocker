@@ -17,8 +17,9 @@ namespace DistractionBlocker
         private const string MarkerStart = "# --- DISTRACTION BLOCKER START ---";
         private const string MarkerEnd = "# --- DISTRACTION BLOCKER END ---";
 
-        public void ApplyBlock(string[] websites)
+        public bool ApplyBlock(string[] websites)
         {
+            bool success = false;
             try
             {
                 UnlockHostsFile();
@@ -51,29 +52,39 @@ namespace DistractionBlocker
                         }
                         sw.WriteLine(MarkerEnd);
                     }
-                    DisableSecureDns();
-                    BlockQuicAndIPs(websites);
+                    bool secureDnsDisabled = DisableSecureDns();
+                    bool firewallApplied = BlockQuicAndIPs(websites);
+                    success = secureDnsDisabled && firewallApplied;
+                }
+                else
+                {
+                    success = true;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine("ApplyBlock failed: " + ex.Message);
+                success = false;
             }
             finally
             {
                 LockHostsFile();
             }
+
+            return success;
         }
 
-        public void RemoveBlock()
+        public bool RemoveBlock()
         {
+            bool success = false;
             try
             {
                 UnlockHostsFile();
                 RemoveExistingBlocks();
-                EnableSecureDns();
-                UnblockQuicAndIPs();
-                FlushDns();
+                bool secureDnsEnabled = EnableSecureDns();
+                bool firewallRemoved = UnblockQuicAndIPs();
+                bool dnsFlushed = FlushDns();
+                success = secureDnsEnabled && firewallRemoved && dnsFlushed;
             }
             catch (Exception ex)
             {
@@ -86,10 +97,13 @@ namespace DistractionBlocker
                         File.Copy(HostsBackupPath, HostsFilePath, true); 
                     } catch { }
                 }
+                success = false;
             }
+
+            return success;
         }
 
-        private void DisableSecureDns()
+        private bool DisableSecureDns()
         {
             try
             {
@@ -110,14 +124,16 @@ namespace DistractionBlocker
                     if (key != null) key.SetValue("Enabled", 0, RegistryValueKind.DWord);
                 }
                 Console.WriteLine("Secure DNS disabled via Registry.");
+                return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Failed to disable Secure DNS: " + ex.Message);
+                return false;
             }
         }
 
-        private void EnableSecureDns()
+        private bool EnableSecureDns()
         {
             try
             {
@@ -138,14 +154,16 @@ namespace DistractionBlocker
                     if (key != null) key.DeleteValue("Enabled", false);
                 }
                 Console.WriteLine("Secure DNS policies removed.");
+                return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Failed to enable Secure DNS: " + ex.Message);
+                return false;
             }
         }
 
-        private void FlushDns()
+        private bool FlushDns()
         {
             try
             {
@@ -157,23 +175,26 @@ namespace DistractionBlocker
                 flush.Start();
                 flush.WaitForExit();
                 Console.WriteLine("DNS Cache flushed.");
+                return flush.ExitCode == 0;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Failed to flush DNS: " + ex.Message);
+                return false;
             }
         }
 
-        private void BlockQuicAndIPs(string[] websites)
+        private bool BlockQuicAndIPs(string[] websites)
         {
             try
             {
                 // 1. Block QUIC (UDP 443)
                 ExecuteCommand("netsh", "advfirewall firewall delete rule name=\"FocusAgent_BlockQUIC\"");
-                ExecuteCommand("netsh", "advfirewall firewall add rule name=\"FocusAgent_BlockQUIC\" dir=out action=block protocol=UDP remoteport=443");
+                bool quicBlocked = ExecuteCommand("netsh", "advfirewall firewall add rule name=\"FocusAgent_BlockQUIC\" dir=out action=block protocol=UDP remoteport=443") == 0;
                 
                 // 2. Block IPs dynamically
                 ExecuteCommand("netsh", "advfirewall firewall delete rule name=\"FocusAgent_IPBlock\"");
+                bool ipBlocked = true;
                 if (websites != null)
                 {
                     List<string> ips = new List<string>();
@@ -190,32 +211,36 @@ namespace DistractionBlocker
                     if (ips.Count > 0)
                     {
                         string ipList = string.Join(",", ips);
-                        ExecuteCommand("netsh", string.Format("advfirewall firewall add rule name=\"FocusAgent_IPBlock\" dir=out action=block remoteip=\"{0}\"", ipList));
+                        ipBlocked = ExecuteCommand("netsh", string.Format("advfirewall firewall add rule name=\"FocusAgent_IPBlock\" dir=out action=block remoteip=\"{0}\"", ipList)) == 0;
                     }
                 }
                 Console.WriteLine("Firewall QUIC and IP rules applied.");
+                return quicBlocked && ipBlocked;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Firewall block failed: " + ex.Message);
+                return false;
             }
         }
 
-        private void UnblockQuicAndIPs()
+        private bool UnblockQuicAndIPs()
         {
             try
             {
                 ExecuteCommand("netsh", "advfirewall firewall delete rule name=\"FocusAgent_BlockQUIC\"");
                 ExecuteCommand("netsh", "advfirewall firewall delete rule name=\"FocusAgent_IPBlock\"");
                 Console.WriteLine("Firewall rules removed.");
+                return true;
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Failed to remove Firewall rules: " + ex.Message);
+                return false;
             }
         }
 
-        private void ExecuteCommand(string filename, string arguments)
+        private int ExecuteCommand(string filename, string arguments)
         {
             Process p = new Process();
             p.StartInfo.FileName = filename;
@@ -225,6 +250,7 @@ namespace DistractionBlocker
             p.StartInfo.UseShellExecute = false;
             p.Start();
             p.WaitForExit();
+            return p.ExitCode;
         }
 
         private void RemoveExistingBlocks()

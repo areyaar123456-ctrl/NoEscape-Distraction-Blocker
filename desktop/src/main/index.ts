@@ -115,7 +115,7 @@ function createTray() {
         })) : [{ label: 'No Custom Profiles Found', enabled: false }];
 
         const contextMenu = Menu.buildFromTemplate([
-            { label: 'FOCUS_AGENT_v1.0', enabled: false },
+            { label: 'NoEscape v1.0', enabled: false },
             { label: status.active ? '● Enforcement Active' : '○ Standby Mode', enabled: false },
             { type: 'separator' },
             { label: 'Launch Dashboard', click: () => mainWindow?.show() },
@@ -164,17 +164,28 @@ function createTray() {
                     },
                     {
                         label: 'Hard Reset Environment',
+                        enabled: !status.active || !(status as any).locked_mode,
                         click: async () => {
-                            await sessionManager.forceDeepClean();
-                            mainWindow?.webContents.reloadIgnoringCache();
-                            mainWindow?.webContents.send('force-sync');
+                            try {
+                                await sessionManager.forceDeepClean();
+                                mainWindow?.webContents.reloadIgnoringCache();
+                                mainWindow?.webContents.send('force-sync');
+                            } catch (err: any) {
+                                new Notification({
+                                    title: 'NoEscape Locked Session Active',
+                                    body: err?.message || 'Locked sessions cannot be reset early.',
+                                    silent: false
+                                }).show();
+                            } finally {
+                                updateTrayMenu();
+                            }
                         }
                     }
                 ]
             },
             { type: 'separator' },
             {
-                label: 'Quit Focus Agent',
+                label: 'Quit NoEscape',
                 enabled: !status.active || !(status as any).locked_mode,
                 click: () => {
                     isQuitting = true;
@@ -185,7 +196,7 @@ function createTray() {
         tray?.setContextMenu(contextMenu);
     };
 
-    tray.setToolTip('Focus Agent - Background Protection Active');
+    tray.setToolTip('NoEscape - Background Protection Active');
     updateTrayMenu();
 
     // Update tray menu periodically to reflect session status
@@ -207,7 +218,7 @@ async function createWindow() {
             nodeIntegration: false,
             sandbox: false // Required for TypeScript's CommonJS 'exports' polyfill in the preload script
         },
-        title: "Distraction Blocker",
+        title: "NoEscape",
         backgroundColor: '#0f172a',
         show: !process.argv.includes('--minimized'),
     });
@@ -284,8 +295,8 @@ ipcMain.handle('session:start', async (_, data) => {
     });
 
     new Notification({
-        title: 'Focus Session Started',
-        body: 'Multi-level blocking is now active. Stay focused!',
+        title: 'NoEscape Session Started',
+        body: 'Multi-level blocking is now active.',
         silent: false
     }).show();
 
@@ -296,7 +307,7 @@ ipcMain.handle('session:end', async () => {
     const result = await sessionManager.endSession();
 
     new Notification({
-        title: 'Focus Session Ended',
+        title: 'NoEscape Session Ended',
         body: 'Systems restored. You can now access all apps and sites.',
         silent: false
     }).show();

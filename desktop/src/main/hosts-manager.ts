@@ -34,7 +34,7 @@ export class HostsManager {
 
             fs.writeFileSync(this.hostsPath, content + '\n' + blockLines);
         } catch (err) {
-            console.error('Failed to modify hosts file:', err);
+            console.error('Failed to modify hosts file:.', err);
         }
     }
 

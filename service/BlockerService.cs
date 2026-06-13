@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ServiceProcess;
 using System.Threading;
 
@@ -88,30 +89,143 @@ namespace DistractionBlocker
             }
         }
 
-        private void HandleMessage(IpcMessage msg)
+        private IpcResponse HandleMessage(IpcMessage msg)
         {
-            Console.WriteLine("Command Received: " + msg.command);
-            
-            if (msg.command == "START_BLOCK")
+            if (msg == null)
             {
-                _blockedApps = msg.apps ?? new string[0];
-                _blockedWebsites = msg.websites ?? new string[0];
-                _isBlocked = true;
-                
-                try { ProcessProtector.Protect(); } catch (Exception ex) { Console.WriteLine(ex.Message); }
-                try { _websiteBlocker.ApplyBlock(_blockedWebsites); } catch (Exception ex) { Console.WriteLine(ex.Message); }
-                Console.WriteLine("Blocking started.");
+                return IpcResponse.Error(msg, "Request body was empty.", new string[0]);
             }
-            else if (msg.command == "STOP_BLOCK")
+
+            var warnings = new List<string>();
+            string command = (msg.command ?? string.Empty).Trim().ToUpperInvariant();
+            Console.WriteLine("Command Received: " + command);
+
+            if (command == "PING")
+            {
+                return IpcResponse.Ok(msg, "Native blocker service is available.", new string[0]);
+            }
+
+            string validationError = ValidateMessage(command, msg);
+            if (validationError != null)
+            {
+                return IpcResponse.Error(msg, validationError, new string[0]);
+            }
+            
+            if (command == "START_BLOCK")
+            {
+                _blockedApps = SanitizeList(msg.apps);
+                _blockedWebsites = SanitizeList(msg.websites);
+                _isBlocked = true;
+
+                if (!ProcessProtector.Protect())
+                {
+                    warnings.Add("Process protection could not be enabled.");
+                }
+
+                bool websitesApplied = _websiteBlocker.ApplyBlock(_blockedWebsites);
+                if (!websitesApplied)
+                {
+                    warnings.Add("Website blocking could not be fully applied.");
+                }
+
+                Console.WriteLine("Blocking started.");
+                if (!websitesApplied)
+                {
+                    return IpcResponse.Error(msg, "Native service accepted the session, but website blocking failed.", warnings.ToArray());
+                }
+
+                return IpcResponse.Ok(msg, "Blocking started.", warnings.ToArray());
+            }
+
+            if (command == "STOP_BLOCK")
             {
                 _isBlocked = false;
                 _blockedApps = new string[0];
                 _blockedWebsites = new string[0];
-                
-                try { _websiteBlocker.RemoveBlock(); } catch (Exception ex) { Console.WriteLine("Website unblock error: " + ex.Message); }
-                try { ProcessProtector.Unprotect(); } catch (Exception ex) { Console.WriteLine("Unprotect error: " + ex.Message); }
+
+                bool websitesRemoved = _websiteBlocker.RemoveBlock();
+                if (!websitesRemoved)
+                {
+                    warnings.Add("Website blocking cleanup could not be fully completed.");
+                }
+
+                if (!ProcessProtector.Unprotect())
+                {
+                    warnings.Add("Process protection cleanup could not be confirmed.");
+                }
+
                 Console.WriteLine("Blocking stopped.");
+                if (!websitesRemoved)
+                {
+                    return IpcResponse.Error(msg, "Native service stopped app blocking, but website cleanup failed.", warnings.ToArray());
+                }
+
+                return IpcResponse.Ok(msg, "Blocking stopped.", warnings.ToArray());
             }
+
+            return IpcResponse.Error(msg, "Unsupported native IPC command: " + command, new string[0]);
+        }
+
+        private static string ValidateMessage(string command, IpcMessage msg)
+        {
+            if (command != "START_BLOCK" && command != "STOP_BLOCK")
+            {
+                return "Unsupported native IPC command: " + command;
+            }
+
+            if (msg.protocolVersion != 0 && msg.protocolVersion != 1)
+            {
+                return "Unsupported native IPC protocol version.";
+            }
+
+            string listError = ValidateList(msg.websites, "websites");
+            if (listError != null) return listError;
+
+            return ValidateList(msg.apps, "apps");
+        }
+
+        private static string ValidateList(string[] items, string fieldName)
+        {
+            if (items == null) return null;
+            if (items.Length > 500) return fieldName + " exceeds the maximum item count.";
+
+            foreach (string item in items)
+            {
+                if (item == null) return fieldName + " contains an empty item.";
+                string trimmed = item.Trim();
+                if (trimmed.Length == 0) return fieldName + " contains an empty item.";
+                if (trimmed.Length > 260) return fieldName + " contains an item that is too long.";
+                if (ContainsControlCharacter(trimmed)) return fieldName + " contains an invalid control character.";
+            }
+
+            return null;
+        }
+
+        private static string[] SanitizeList(string[] items)
+        {
+            if (items == null) return new string[0];
+
+            var sanitized = new List<string>();
+            foreach (string item in items)
+            {
+                string trimmed = item.Trim();
+                if (trimmed.Length > 0)
+                {
+                    sanitized.Add(trimmed);
+                }
+            }
+
+            return sanitized.ToArray();
+        }
+
+        private static bool ContainsControlCharacter(string value)
+        {
+            foreach (char c in value)
+            {
+                if (char.IsControl(c)) return true;
+            }
+
+            return false;
         }
     }
 }

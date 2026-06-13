@@ -8,9 +8,44 @@ namespace DistractionBlocker
 {
     public class IpcMessage
     {
+        public int protocolVersion { get; set; }
+        public string requestId { get; set; }
         public string command { get; set; }
         public string[] websites { get; set; }
         public string[] apps { get; set; }
+    }
+
+    public class IpcResponse
+    {
+        public string status { get; set; }
+        public string requestId { get; set; }
+        public string command { get; set; }
+        public string message { get; set; }
+        public string[] warnings { get; set; }
+
+        public static IpcResponse Ok(IpcMessage msg, string message, string[] warnings)
+        {
+            return new IpcResponse
+            {
+                status = "ok",
+                requestId = msg != null ? msg.requestId : null,
+                command = msg != null ? msg.command : null,
+                message = message,
+                warnings = warnings ?? new string[0]
+            };
+        }
+
+        public static IpcResponse Error(IpcMessage msg, string message, string[] warnings)
+        {
+            return new IpcResponse
+            {
+                status = "error",
+                requestId = msg != null ? msg.requestId : null,
+                command = msg != null ? msg.command : null,
+                message = message,
+                warnings = warnings ?? new string[0]
+            };
+        }
     }
 
     public class PipeServer
@@ -19,7 +54,7 @@ namespace DistractionBlocker
         private bool _isRunning = false;
         private JavaScriptSerializer _serializer = new JavaScriptSerializer();
 
-        public event Action<IpcMessage> OnMessageReceived;
+        public event Func<IpcMessage, IpcResponse> OnMessageReceived;
 
         public void Start()
         {
@@ -63,16 +98,21 @@ namespace DistractionBlocker
                                 try
                                 {
                                     var msg = _serializer.Deserialize<IpcMessage>(line);
+                                    IpcResponse response;
                                     if (msg != null && OnMessageReceived != null)
                                     {
-                                        OnMessageReceived(msg);
+                                        response = OnMessageReceived(msg);
                                     }
-                                    writer.WriteLine("{\"status\":\"ok\"}");
+                                    else
+                                    {
+                                        response = IpcResponse.Error(msg, "No handler registered for native IPC message.", new string[0]);
+                                    }
+                                    writer.WriteLine(_serializer.Serialize(response));
                                 }
                                 catch (Exception ex)
                                 {
                                     Console.WriteLine("JSON Error: " + ex.Message);
-                                    writer.WriteLine("{\"status\":\"error\"}");
+                                    writer.WriteLine(_serializer.Serialize(IpcResponse.Error(null, "Invalid native IPC request.", new string[] { ex.Message })));
                                 }
                             }
                         }

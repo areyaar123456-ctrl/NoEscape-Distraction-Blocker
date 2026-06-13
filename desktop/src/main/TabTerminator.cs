@@ -173,7 +173,7 @@ class TabTerminator
                                         Regex.IsMatch(title, @"\bsearch\b") ||
                                         Regex.IsMatch(title, @"\b(bing|yahoo|baidu|yandex)\b");
 
-                        if (isSearch || title.Contains("focus agent"))
+                        if (isSearch || title.Contains("focus agent") || title.Contains("noescape"))
                         {
                             Thread.Sleep(500);
                             lastBlockedHWnd = IntPtr.Zero; // Reset on safe pages
@@ -181,14 +181,8 @@ class TabTerminator
                             continue;
                         }
 
-                        // STATE-BASED COOLDOWN (Replaces time-based)
-                        // If we are still looking at the same window and it still has the same title, 
-                        // we've already fired for this specific "view". Don't spam until the user switches away or reloads.
-                        if (hWnd == lastBlockedHWnd && rawTitle == lastBlockedTitle)
-                        {
-                            Thread.Sleep(500);
-                            continue;
-                        }
+                        // COOLDOWN REMOVED: Always check and enforce blocking if a match is found.
+                        // This ensures that if a tab closure fails or the user stays on the page, the agent keeps fighting.
 
                         foreach (var kw in blocked)
                         {

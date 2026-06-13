@@ -6,8 +6,8 @@ import Providers from "@/components/Providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "Distraction Blocker",
-    description: "Cross-device focus sessions",
+    title: "NoEscape",
+    description: "Local-first focus sessions",
 };
 
 export default function RootLayout({

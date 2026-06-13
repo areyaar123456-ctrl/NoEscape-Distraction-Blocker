@@ -1,8 +1,8 @@
 {
     "name": "desktop",
     "version": "1.1.0",
-    "description": "Multi-Layered Distraction Blocker and Focus Agent",
-    "author": "Focus Labs",
+    "description": "Multi-layered distraction blocker and local focus guard",
+    "author": "NoEscape",
     "main": "dist/main/index.js",
     "type": "module",
     "scripts": {
@@ -11,11 +11,11 @@
         "build:main": "tsc",
         "build:renderer": "vite build",
         "start": "electron .",
-        "dist": "taskkill /F /IM \"Focus Agent.exe\" /T & npm run build && electron-builder --win"
+        "dist": "taskkill /F /IM \"NoEscape.exe\" /T & npm run build && electron-builder --win"
     },
     "build": {
         "appId": "com.focus.agent",
-        "productName": "Focus Agent",
+        "productName": "NoEscape",
         "directories": {
             "output": "release"
         },
@@ -45,8 +45,8 @@
         "@types/react": "^19.0.10",
         "@types/react-dom": "^19.0.4",
         "@vitejs/plugin-react": "^4.3.4",
-        "electron": "^34.2.0",
-        "electron-builder": "^25.1.8",
+        "electron": "^42.4.0",
+        "electron-builder": "^26.15.2",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "typescript": "^5.7.3",

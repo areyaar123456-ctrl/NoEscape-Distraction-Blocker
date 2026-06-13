@@ -20,7 +20,7 @@ else {
     exit 1
 }
 
-Write-Host "Starting Focus Agent Web Dashboard..." -ForegroundColor Cyan
+Write-Host "Starting NoEscape Web Dashboard..." -ForegroundColor Cyan
 
 # We need npm to run 'next dev'
 $npmPath = Get-Command npm -ErrorAction SilentlyContinue

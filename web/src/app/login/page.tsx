@@ -36,7 +36,7 @@ export default function LoginPage() {
                             type="text"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
                             required
                         />
                     </div>
@@ -46,19 +46,19 @@ export default function LoginPage() {
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
                             required
                         />
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-3 bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg transition-colors"
+                        className="w-full py-3 bg-red-600 hover:bg-red-700 font-semibold rounded-lg transition-colors"
                     >
                         Sign In
                     </button>
                 </form>
                 <p className="text-center text-slate-400">
-                    Don't have an account? <Link href="/register" className="text-blue-400 hover:underline">Register</Link>
+                    Don't have an account? <Link href="/register" className="text-red-400 hover:underline">Register</Link>
                 </p>
             </div>
         </div>
